@@ -8,22 +8,18 @@ module.exports = class {
 		this._handleDisconnect = this._handleDisconnect.bind(this);
 		this._handleOfferCreated = this._handleOfferCreated.bind(this);
 		this._handleAnswerCreated = this._handleAnswerCreated.bind(this);
-		this._handleAnswer = this._handleAnswer.bind(this);
 		this._handleIceCandidate = this._handleIceCandidate.bind(this);
 		this._handleNext = this._handleNext.bind(this);
 		this._handleSearch = this._handleSearch.bind(this);
 		this._handleStopSearch = this._handleStopSearch.bind(this);
+		this._handleAction = this._handleAction.bind(this);
 	}
 	
 	setupListeners(socket) {
 		socket.on('disconnect', _.partial(this._handleDisconnect, socket));
 		socket.on('offer-created', _.partial(this._handleOfferCreated, socket));
 		socket.on('answer-created', _.partial(this._handleAnswerCreated, socket));
-		socket.on('answer', _.partial(this._handleAnswer, socket));
-		socket.on('ice-candidate', _.partial(this._handleIceCandidate, socket));
-		socket.on('next', _.partial(this._handleNext, socket));
-		socket.on('search', _.partial(this._handleSearch, socket));
-		socket.on('stop-search', _.partial(this._handleStopSearch, socket));
+		socket.on('action', _.partial(this._handleAction, socket));
 	}
 	
 	_handleDisconnect(socket) {
@@ -40,7 +36,8 @@ module.exports = class {
 		
 		if(room.clientA && room.clientB) {
 			console.log(this._getSocketAddress(room.clientA).yellow, 'created an offer, sending to'.yellow, this._getSocketAddress(room.clientB).yellow);
-			room.clientB.emit('create-answer', sdp);
+			
+			room.clientB.emit('action', { type: 'RECEIVE_OFFER', offer: sdp });
 		}
 	}
 	
@@ -52,31 +49,18 @@ module.exports = class {
 		
 		if(room.clientA && room.clientB) {	
 			console.log(this._getSocketAddress(room.clientB).cyan, 'answering'.cyan, this._getSocketAddress(room.clientA).cyan);
-			room.clientA.emit('answer', sdp);
+			room.clientA.emit('action', { type: 'RECEIVE_ANSWER', answer: sdp });
 		}
 	}
 	
-	_handleAnswer(socket, sdp) {
-		console.log('_handleAnswer');
-		for(let i = 0; i < this._rooms.length; ++i) {
-			if(this._rooms[i].clientA.id === socket.id) {
-				this._rooms[i].clientB.emit('answer', sdp);
-				break;
-			} else if(this._rooms[i].clientB.id === socket.id) {
-				this._rooms[i].clientA.emit('answer', sdp);
-				break;
-			}
-		}
-	}
-	
-	_handleIceCandidate(socket, data) {
+	_handleIceCandidate(socket, candidate) {
 		console.log('_handleIceCandidate');
 		for(let i = 0; i < this._rooms.length; ++i) {
 			if(this._rooms[i].clientA && this._rooms[i].clientA.id === socket.id && this._rooms[i].clientB) {
-				this._rooms[i].clientB.emit('ice-candidate', data.candidate);
+				this._rooms[i].clientB.emit('action', { type: 'RECEIVE_ICE_CANDIDATE', candidate });
 				break;
 			} else if(this._rooms[i].clientB && this._rooms[i].clientB.id === socket.id && this._rooms[i].clientA) {
-				this._rooms[i].clientA.emit('ice-candidate', data.candidate);
+				this._rooms[i].clientA.emit('action', { type: 'RECEIVE_ICE_CANDIDATE', candidate });
 				break;
 			}
 		}
@@ -100,13 +84,13 @@ module.exports = class {
 		
 		if(room.isA(socket)) {
 			if(room.getB())
-				room.getB().emit('remote-hangup');
+				room.getB().emit('action', { type: 'REMOTE_HANGUP' });
 			this._handleSearch(socket);
 		}
 		
 		if(room.isB(socket)) {
 			if(room.getA())
-				room.getA().emit('remote-hangup');
+				room.getA().emit('action', { type: 'REMOTE_HANGUP' });
 			this._handleSearch(socket);
 		}
 		
@@ -153,6 +137,48 @@ module.exports = class {
 			clientsLeft.forEach((client) => {
 				this._handleSearch(client);
 			});
+		}
+	}
+	
+	_toggleSearch(socket) {
+		const currentRoom = this._getCurrentRoom(socket);
+		if(currentRoom) {
+			this._handleStopSearch(socket);
+		} else {
+			this._handleSearch(socket);
+		}
+	}
+	
+	_handleAction(socket, action) {
+		const room = this._getCurrentRoom(socket);
+		
+		console.log(action.type);
+		
+		switch(action.type) {
+			case 'server/TOGGLE_SEARCH':
+				this._toggleSearch(socket);
+				break;
+			case 'server/SEARCH_NEXT':
+				this._handleNext(socket);
+				break;
+			case 'server/CHAT_MESSAGE':
+				if(!room) return;
+				
+				action.message.from = 'partner';
+				action.type = 'RECEIVE_CHAT_MESSAGE'
+				
+				if(room.isA(socket) && room.getB()) {
+					room.getB().emit('action', action);
+				} else if(room.isB(socket) && room.getA()) {
+					room.getA().emit('action', action);
+				}
+				
+				break;
+			case 'server/SEND_ICE_CANDIDATE':
+				this._handleIceCandidate(socket, action.candidate);
+				break;
+			default:
+				console.error('Undefined action type:', action.type);
 		}
 	}
 	

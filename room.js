@@ -32,21 +32,21 @@ class Room {
   }
 
 	start() {
-		this.clientA.emit('initiate-offer');
+		this.clientA.emit('action', { type: 'CREATE_OFFER' });
 	}
   
 	leave(socket) {
 		if(this.clientA && this.clientA.id === socket.id) {
 			this.clientA = undefined;
 			if(this.clientB) {
-				this.clientB.emit('remote-hangup');
+				this.clientB.emit('action', { type: 'REMOTE_HANGUP' });
 			}
 			this.full = false;
 			this.destroy = true;
 		} else if(this.clientB && this.clientB.id === socket.id) {
 			this.clientB = undefined;
 			if(this.clientA) {
-				this.clientA.emit('remote-hangup');
+				this.clientA.emit('action', { type: 'REMOTE_HANGUP' });
 			}
 			this.full = false;
 			this.destroy = true;
@@ -87,9 +87,9 @@ class Room {
 		return this.clientB;
 	}
   
-  isMemberOf(socket) {
-	  return this.contains(socket);
-  }
+	isMemberOf(socket) {
+		return this.contains(socket);
+	}
 }
 
 module.exports = Room;

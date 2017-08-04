@@ -48,11 +48,6 @@ const app = restify.createServer();
 app.pre(cors.preflight);
 app.use(cors.actual);
 
-app.get('/', function(req, res, next) {
-  res.send('About to get right.');
-  next();
-});
-
 app.get('/ice-servers', (req, res) => {
 	twilioClient.api.accounts(TWILIO_SID).tokens.create({})
 		.then(token => res.send(token.iceServers));
