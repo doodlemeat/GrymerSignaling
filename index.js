@@ -53,6 +53,10 @@ app.get('/ice-servers', (req, res) => {
 		.then(token => res.send(token.iceServers));
 });
 
+app.get('/', (req, res) => {
+	res.send('https://i.giphy.com/media/X05U0gOPkQ4G4/giphy.webp');
+});
+
 const io = socketio.listen(app.server);
 
 const roulette = new Roulette();
@@ -65,8 +69,8 @@ io.sockets.on('connection', socket => {
 
 
 function getSocketAddress(socket) {
-	return socket.handshake.headers['x-real-ip'];
+	return socket.handshake.headers['x-real-ip'] || '';
 }
-app.listen(7000, () => {
+app.listen(process.env.PORT, () => {
   console.log('signaling server listening at %s', app.url);
 })
