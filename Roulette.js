@@ -165,7 +165,13 @@ module.exports = class {
 				if(!room) return;
 				
 				action.message.from = 'partner';
-				action.type = 'RECEIVE_CHAT_MESSAGE'
+				action.type = 'RECEIVE_CHAT_MESSAGE';
+				
+				action.message.message = action.message.message.trim();
+				
+				if(action.message.message === '') {
+					return;
+				}
 				
 				if(room.isA(socket) && room.getB()) {
 					room.getB().emit('action', action);
